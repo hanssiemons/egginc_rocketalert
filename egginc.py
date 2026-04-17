@@ -15,6 +15,7 @@ STATE_FILE = BASE_DIR / "rockets_state.json"
 API_ROOT = "https://www.auxbrain.com"
 CLIENT_VERSION = 70
 PLATFORM_STRING = "IOS"
+API_INTERVAL_HOURS = 1
 
 HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
@@ -101,11 +102,11 @@ def fetch_current_missions(player_id):
 
 def load_state():
     if not STATE_FILE.exists():
-        return {"missions": []}
+        return {"missions": [], "last_api_call": None}
     try:
         return json.loads(STATE_FILE.read_text())
     except Exception:
-        return {"missions": []}
+        return {"missions": [], "last_api_call": None}
 
 
 def save_state(state):
@@ -134,14 +135,19 @@ def main():
             new_state_missions.append(m)
 
     # 2. Decide whether to call the API
-    any_landed = bool(landed)
+    last_api_call = state.get("last_api_call")
+    api_overdue = (
+        last_api_call is None
+        or datetime.fromisoformat(last_api_call) < now - timedelta(hours=API_INTERVAL_HOURS)
+    )
     slots_free = len(new_state_missions) < max_missions
-    need_api = any_landed or slots_free
+    need_api = api_overdue or slots_free
 
     if need_api:
         print("[INFO] Fetching missions from API...", file=sys.stderr)
         fresh = fetch_current_missions(player_id)
         print(f"[INFO] {len(fresh)} EXPLORING mission(s) found", file=sys.stderr)
+        state["last_api_call"] = now.isoformat()
 
         existing_ids = {m.get("identifier") for m in new_state_missions if m.get("identifier")}
         for m in fresh:
@@ -154,7 +160,7 @@ def main():
                         old["eta"] = m["eta"]
     else:
         next_eta = min(datetime.fromisoformat(m["eta"]) for m in new_state_missions)
-        print(f"[INFO] All {max_missions} slots in flight, skipping API. Next landing: {next_eta.strftime('%Y-%m-%d %H:%M')}", file=sys.stderr)
+        print(f"[INFO] Skipping API (last call: {last_api_call[:16]}). Next landing: {next_eta.strftime('%Y-%m-%d %H:%M')}", file=sys.stderr)
 
     # 3. Notify for landed missions
     for m in landed:
