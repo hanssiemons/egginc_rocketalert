@@ -136,12 +136,12 @@ def main():
 
     # 2. Decide whether to call the API
     last_api_call = state.get("last_api_call")
-    api_overdue = (
+    api_cooled_down = (
         last_api_call is None
         or datetime.fromisoformat(last_api_call) < now - timedelta(hours=API_INTERVAL_HOURS)
     )
     slots_free = len(new_state_missions) < max_missions
-    need_api = api_overdue or slots_free
+    need_api = (slots_free or bool(landed)) and api_cooled_down
 
     if need_api:
         print("[INFO] Fetching missions from API...", file=sys.stderr)
@@ -159,8 +159,11 @@ def main():
                         old["seconds_remaining"] = m["seconds_remaining"]
                         old["eta"] = m["eta"]
     else:
-        next_eta = min(datetime.fromisoformat(m["eta"]) for m in new_state_missions)
-        print(f"[INFO] Skipping API (last call: {last_api_call[:16]}). Next landing: {next_eta.strftime('%Y-%m-%d %H:%M')}", file=sys.stderr)
+        if new_state_missions:
+            next_eta = min(datetime.fromisoformat(m["eta"]) for m in new_state_missions)
+            print(f"[INFO] Skipping API. Next landing: {next_eta.strftime('%Y-%m-%d %H:%M')}", file=sys.stderr)
+        else:
+            print("[INFO] Skipping API (no missions tracked)", file=sys.stderr)
 
     # 3. Notify for landed missions
     for m in landed:
