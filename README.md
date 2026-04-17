@@ -12,7 +12,7 @@ On each run the script:
 3. Skips the API call if all slots are in flight and nothing has landed yet
 4. Otherwise fetches fresh mission data from the Egg Inc API and merges it into state
 
-Intended to be run every 15 minutes via Task Scheduler or cron.
+Intended to be run every minute via Task Scheduler or cron. The Egg Inc API is only called when needed (free slot or landed rocket) and at most once per hour.
 
 ## Setup
 
@@ -53,11 +53,11 @@ cp egginc_config.ini.sample egginc_config.ini
 ```
 python C:\sites\egginc\egginc.py
 ```
-Trigger: every 15 minutes.
+Trigger: every 1 minute.
 
 **Linux/macOS cron:**
 ```
-*/15 * * * * /usr/bin/python3 /path/to/egginc/egginc.py
+* * * * * /usr/bin/python3 /path/to/egginc/egginc.py
 ```
 
 ## Files
@@ -69,3 +69,7 @@ Trigger: every 15 minutes.
 | `egginc_config.ini.sample` | Config template |
 | `ei_pb2.py` | Generated protobuf module (included) |
 | `rockets_state.json` | Persisted mission state (auto-generated, not in git) |
+
+## Credits
+
+- [carpetsage/egg](https://github.com/carpetsage/egg) — source of the `ei.proto` protobuf definitions and API documentation used in this project.
