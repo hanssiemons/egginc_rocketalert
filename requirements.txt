@@ -1,0 +1,7 @@
+# runtime
+requests>=2.32
+protobuf>=5.29
+
+# only needed to regenerate ei_pb2.py from ei.proto
+# python -m grpc_tools.protoc -I<proto_dir> --python_out=. ei.proto
+grpcio-tools>=1.71

@@ -1,0 +1,7 @@
+[egginc]
+player_id = EI0000000000000000
+max_missions = 3
+
+[telegram]
+bot_token = 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
+chat_id = 000000000
