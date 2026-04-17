@@ -22,15 +22,15 @@ Intended to be run every 15 minutes via Task Scheduler or cron.
 pip install -r requirements.txt
 ```
 
-### 2. Generate ei_pb2.py
+### 2. ei_pb2.py
 
-Clone [carpetsage/egg](https://github.com/carpetsage/egg) and run:
+`ei_pb2.py` is included in this repo (generated from [carpetsage/egg](https://github.com/carpetsage/egg)'s `ei.proto`). No action needed.
+
+If you ever need to regenerate it:
 
 ```
 python -m grpc_tools.protoc -I<path_to_egg_repo>/protobuf --python_out=. ei.proto
 ```
-
-Place the generated `ei_pb2.py` in this directory.
 
 ### 3. Configure
 
@@ -67,5 +67,5 @@ Trigger: every 15 minutes.
 | `egginc.py` | Main script |
 | `egginc_config.ini` | Your local config (not in git) |
 | `egginc_config.ini.sample` | Config template |
-| `ei_pb2.py` | Generated protobuf module (not in git) |
+| `ei_pb2.py` | Generated protobuf module (included) |
 | `rockets_state.json` | Persisted mission state (auto-generated, not in git) |

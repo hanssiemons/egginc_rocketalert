@@ -2,6 +2,6 @@
 requests>=2.32
 protobuf>=5.29
 
-# only needed to regenerate ei_pb2.py from ei.proto
-# python -m grpc_tools.protoc -I<proto_dir> --python_out=. ei.proto
-grpcio-tools>=1.71
+# only needed if you want to regenerate ei_pb2.py from ei.proto
+# pip install grpcio-tools
+# python -m grpc_tools.protoc -I<path_to_egg_repo>/protobuf --python_out=. ei.proto
