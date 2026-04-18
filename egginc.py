@@ -84,16 +84,15 @@ def fetch_current_missions(player_id):
         print("[ERROR] No artifacts_db in response", file=sys.stderr)
         return []
 
-    now = datetime.now()
     missions = []
     for m in contact.backup.artifacts_db.mission_infos:
         if m.status != ei_pb2.MissionInfo.Status.Value("EXPLORING"):
             continue
-        eta = now + timedelta(seconds=m.seconds_remaining)
+        eta = datetime.fromtimestamp(m.start_time_derived + m.duration_seconds)
         missions.append({
             "ship": ei_pb2.MissionInfo.Spaceship.Name(m.ship),
             "identifier": m.identifier,
-            "seconds_remaining": m.seconds_remaining,
+            "duration_seconds": m.duration_seconds,
             "eta": eta.isoformat(),
             "reported": False,
         })
@@ -119,6 +118,7 @@ def main():
     max_missions = cfg.getint("egginc", "max_missions", fallback=3)
 
     now = datetime.now()
+    print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] Run start", file=sys.stderr)
     state = load_state()
     old_missions = state.get("missions", [])
     new_state_missions = []
@@ -150,8 +150,10 @@ def main():
         state["last_api_call"] = now.isoformat()
 
         existing_ids = {m.get("identifier") for m in new_state_missions if m.get("identifier")}
+        existing_ids |= {m.get("identifier") for m in landed if m.get("identifier")}
         for m in fresh:
             if m["identifier"] not in existing_ids:
+                print(f"[INFO] New mission: {m['ship']} — ETA {m['eta']}", file=sys.stderr)
                 new_state_missions.append(m)
             else:
                 for old in new_state_missions:
@@ -165,11 +167,18 @@ def main():
         else:
             print("[INFO] Skipping API (no missions tracked)", file=sys.stderr)
 
-    # 3. Notify for landed missions
+    # 3. Remind if not all slots are in use (only on API runs)
+    if need_api and len(new_state_missions) < max_missions:
+        flying = len(new_state_missions)
+        msg = f"Not all rockets are flying: {flying}/{max_missions} active"
+        print(msg)
+        send_telegram(cfg, msg)
+
+    # 4. Notify for landed missions
     for m in landed:
         ship = SHIP_NAMES.get(m.get("ship", ""), m.get("ship", "?"))
         eta = datetime.fromisoformat(m["eta"])
-        msg = f"Raket geland: {ship} ({eta.strftime('%H:%M')})"
+        msg = f"Rocket landed: {ship}"
         print(msg)
         send_telegram(cfg, msg)
 
