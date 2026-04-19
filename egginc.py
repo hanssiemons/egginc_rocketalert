@@ -158,7 +158,6 @@ def main():
             else:
                 for old in new_state_missions:
                     if old.get("identifier") == m["identifier"]:
-                        old["seconds_remaining"] = m["seconds_remaining"]
                         old["eta"] = m["eta"]
     else:
         if new_state_missions:
