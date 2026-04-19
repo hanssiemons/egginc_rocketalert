@@ -166,8 +166,8 @@ def main():
         else:
             print("[INFO] Skipping API (no missions tracked)", file=sys.stderr)
 
-    # 3. Remind if not all slots are in use (only on API runs)
-    if need_api and len(new_state_missions) < max_missions:
+    # 3. Remind if not all slots are in use (only on API runs, and not right after a landing)
+    if need_api and not landed and len(new_state_missions) < max_missions:
         flying = len(new_state_missions)
         msg = f"Not all rockets are flying: {flying}/{max_missions} active"
         print(msg)
