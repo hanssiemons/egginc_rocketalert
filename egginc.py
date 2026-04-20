@@ -102,6 +102,8 @@ def fetch_current_missions(player_id):
         print("[ERROR] No artifacts_db in response", file=sys.stderr)
         return []
 
+    player_name = contact.backup.user_name or None
+
     missions = []
     for m in contact.backup.artifacts_db.mission_infos:
         if m.status != ei_pb2.MissionInfo.Status.Value("EXPLORING"):
@@ -114,7 +116,7 @@ def fetch_current_missions(player_id):
             "eta": eta.isoformat(),
             "reported": False,
         })
-    return missions
+    return player_name, missions
 
 
 def state_file(player_id):
@@ -145,11 +147,12 @@ def save_state(player_id, state):
 def run_account(cfg, account, now):
     player_id    = account["player_id"]
     max_missions = account["max_missions"]
-    name         = account["name"]
-    label        = f"[{name}] " if name else ""
+    name         = account["name"]  # may be overridden by API response
+    label        = f"[{name or player_id}] "
 
-    def notify(msg):
-        full = f"{name}: {msg}" if name else msg
+    def notify(msg, resolved_name=None):
+        display = resolved_name or name
+        full = f"{display}: {msg}" if display else msg
         print(full)
         send_telegram(cfg, full)
 
@@ -179,8 +182,10 @@ def run_account(cfg, account, now):
 
     if need_api:
         print(f"[INFO] {label}Fetching missions from API...", file=sys.stderr)
-        fresh = fetch_current_missions(player_id)
-        print(f"[INFO] {label}{len(fresh)} EXPLORING mission(s) found", file=sys.stderr)
+        api_name, fresh = fetch_current_missions(player_id)
+        if api_name:
+            name = api_name
+        print(f"[INFO] {label}{len(fresh)} EXPLORING mission(s) found (player: {name or player_id})", file=sys.stderr)
         state["last_api_call"] = now.isoformat()
 
         existing_ids = {m.get("identifier") for m in new_state_missions if m.get("identifier")}
@@ -203,12 +208,12 @@ def run_account(cfg, account, now):
     # 3. Remind if not all slots are in use (only on API runs, and not right after a landing)
     if need_api and not landed and len(new_state_missions) < max_missions:
         flying = len(new_state_missions)
-        notify(f"Not all rockets are flying: {flying}/{max_missions} active")
+        notify(f"Not all rockets are flying: {flying}/{max_missions} active", name)
 
     # 4. Notify for landed missions
     for m in landed:
         ship = SHIP_NAMES.get(m.get("ship", ""), m.get("ship", "?"))
-        notify(f"Rocket landed: {ship}")
+        notify(f"Rocket landed: {ship}", name)
 
     state["missions"] = new_state_missions
     save_state(player_id, state)
