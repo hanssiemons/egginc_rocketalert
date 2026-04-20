@@ -10,7 +10,6 @@ import ei_pb2
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "egginc_config.ini"
-STATE_FILE = BASE_DIR / "rockets_state.json"
 
 API_ROOT = "https://www.auxbrain.com"
 CLIENT_VERSION = 70
@@ -41,6 +40,25 @@ def load_config():
     cfg = configparser.ConfigParser()
     cfg.read(CONFIG_FILE)
     return cfg
+
+
+def get_accounts(cfg):
+    accounts = []
+    for section in cfg.sections():
+        if section.startswith("account:"):
+            name = section[8:].strip()
+            accounts.append({
+                "name": name,
+                "player_id": cfg.get(section, "player_id").strip(),
+                "max_missions": cfg.getint(section, "max_missions", fallback=3),
+            })
+    if not accounts and cfg.has_section("egginc"):
+        accounts.append({
+            "name": None,
+            "player_id": cfg.get("egginc", "player_id").strip(),
+            "max_missions": cfg.getint("egginc", "max_missions", fallback=3),
+        })
+    return accounts
 
 
 def send_telegram(cfg, message):
@@ -99,27 +117,43 @@ def fetch_current_missions(player_id):
     return missions
 
 
-def load_state():
-    if not STATE_FILE.exists():
+def state_file(player_id):
+    return BASE_DIR / f"rockets_state_{player_id}.json"
+
+
+def load_state(player_id):
+    f = state_file(player_id)
+    if not f.exists():
+        # migrate from legacy single-account state file
+        legacy = BASE_DIR / "rockets_state.json"
+        if legacy.exists():
+            try:
+                return json.loads(legacy.read_text())
+            except Exception:
+                pass
         return {"missions": [], "last_api_call": None}
     try:
-        return json.loads(STATE_FILE.read_text())
+        return json.loads(f.read_text())
     except Exception:
         return {"missions": [], "last_api_call": None}
 
 
-def save_state(state):
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+def save_state(player_id, state):
+    state_file(player_id).write_text(json.dumps(state, indent=2))
 
 
-def main():
-    cfg = load_config()
-    player_id = cfg.get("egginc", "player_id").strip()
-    max_missions = cfg.getint("egginc", "max_missions", fallback=3)
+def run_account(cfg, account, now):
+    player_id    = account["player_id"]
+    max_missions = account["max_missions"]
+    name         = account["name"]
+    label        = f"[{name}] " if name else ""
 
-    now = datetime.now()
-    print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] Run start", file=sys.stderr)
-    state = load_state()
+    def notify(msg):
+        full = f"{name}: {msg}" if name else msg
+        print(full)
+        send_telegram(cfg, full)
+
+    state = load_state(player_id)
     old_missions = state.get("missions", [])
     new_state_missions = []
     landed = []
@@ -144,16 +178,16 @@ def main():
     need_api = (slots_free or bool(landed)) and api_cooled_down
 
     if need_api:
-        print("[INFO] Fetching missions from API...", file=sys.stderr)
+        print(f"[INFO] {label}Fetching missions from API...", file=sys.stderr)
         fresh = fetch_current_missions(player_id)
-        print(f"[INFO] {len(fresh)} EXPLORING mission(s) found", file=sys.stderr)
+        print(f"[INFO] {label}{len(fresh)} EXPLORING mission(s) found", file=sys.stderr)
         state["last_api_call"] = now.isoformat()
 
         existing_ids = {m.get("identifier") for m in new_state_missions if m.get("identifier")}
         existing_ids |= {m.get("identifier") for m in landed if m.get("identifier")}
         for m in fresh:
             if m["identifier"] not in existing_ids:
-                print(f"[INFO] New mission: {m['ship']} — ETA {m['eta']}", file=sys.stderr)
+                print(f"[INFO] {label}New mission: {m['ship']} — ETA {m['eta']}", file=sys.stderr)
                 new_state_missions.append(m)
             else:
                 for old in new_state_missions:
@@ -162,27 +196,32 @@ def main():
     else:
         if new_state_missions:
             next_eta = min(datetime.fromisoformat(m["eta"]) for m in new_state_missions)
-            print(f"[INFO] Skipping API. Next landing: {next_eta.strftime('%Y-%m-%d %H:%M')}", file=sys.stderr)
+            print(f"[INFO] {label}Skipping API. Next landing: {next_eta.strftime('%Y-%m-%d %H:%M')}", file=sys.stderr)
         else:
-            print("[INFO] Skipping API (no missions tracked)", file=sys.stderr)
+            print(f"[INFO] {label}Skipping API (no missions tracked)", file=sys.stderr)
 
     # 3. Remind if not all slots are in use (only on API runs, and not right after a landing)
     if need_api and not landed and len(new_state_missions) < max_missions:
         flying = len(new_state_missions)
-        msg = f"Not all rockets are flying: {flying}/{max_missions} active"
-        print(msg)
-        send_telegram(cfg, msg)
+        notify(f"Not all rockets are flying: {flying}/{max_missions} active")
 
     # 4. Notify for landed missions
     for m in landed:
         ship = SHIP_NAMES.get(m.get("ship", ""), m.get("ship", "?"))
-        eta = datetime.fromisoformat(m["eta"])
-        msg = f"Rocket landed: {ship}"
-        print(msg)
-        send_telegram(cfg, msg)
+        notify(f"Rocket landed: {ship}")
 
     state["missions"] = new_state_missions
-    save_state(state)
+    save_state(player_id, state)
+
+
+def main():
+    cfg      = load_config()
+    accounts = get_accounts(cfg)
+    now      = datetime.now()
+    print(f"[{now.strftime('%Y-%m-%d %H:%M:%S')}] Run start ({len(accounts)} account(s))", file=sys.stderr)
+
+    for account in accounts:
+        run_account(cfg, account, now)
 
 
 if __name__ == "__main__":

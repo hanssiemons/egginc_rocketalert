@@ -1,6 +1,16 @@
+# Single account (legacy format, still supported)
 [egginc]
 player_id = EI0000000000000000
 max_missions = 3
+
+# Multiple accounts — use [account:YourName] sections instead
+# [account:Hans]
+# player_id = EI0000000000000000
+# max_missions = 3
+#
+# [account:Friend]
+# player_id = EI1111111111111111
+# max_missions = 3
 
 [telegram]
 bot_token = 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
