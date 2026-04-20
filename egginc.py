@@ -147,7 +147,7 @@ def save_state(player_id, state):
 def run_account(cfg, account, now):
     player_id    = account["player_id"]
     max_missions = account["max_missions"]
-    name         = account["name"]  # may be overridden by API response
+    name         = account["name"]  # may be overridden by API response or stored state
     label        = f"[{name or player_id}] "
 
     def notify(msg, resolved_name=None):
@@ -157,6 +157,8 @@ def run_account(cfg, account, now):
         send_telegram(cfg, full)
 
     state = load_state(player_id)
+    if state.get("player_name"):
+        name = state["player_name"]
     old_missions = state.get("missions", [])
     new_state_missions = []
     landed = []
@@ -185,6 +187,7 @@ def run_account(cfg, account, now):
         api_name, fresh = fetch_current_missions(player_id)
         if api_name:
             name = api_name
+            state["player_name"] = api_name
         print(f"[INFO] {label}{len(fresh)} EXPLORING mission(s) found (player: {name or player_id})", file=sys.stderr)
         state["last_api_call"] = now.isoformat()
 
