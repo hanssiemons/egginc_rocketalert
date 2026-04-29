@@ -221,6 +221,10 @@ def run_account(cfg, account, now):
 
     # 3. Remind if not all slots are in use, outside the grace period after a landing
     last_landing = state.get("last_landing_time")
+    if reported_ids:
+        latest_reported = max(reported_ids.values())
+        if not last_landing or latest_reported > last_landing:
+            last_landing = latest_reported
     in_grace = last_landing and datetime.fromisoformat(last_landing) > now - timedelta(hours=LANDING_GRACE_HOURS)
     if need_api and not in_grace and len(new_state_missions) < max_missions:
         flying = len(new_state_missions)
