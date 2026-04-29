@@ -16,7 +16,7 @@ CLIENT_VERSION = 70
 PLATFORM_STRING = "IOS"
 API_INTERVAL_HOURS = 1
 REPORTED_ID_TTL_HOURS = 48
-LANDING_GRACE_HOURS = 8  # suppress "not flying" alerts for this long after any landing
+LANDING_GRACE_HOURS = 24  # suppress "not flying" alerts for this long after any landing
 
 HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
