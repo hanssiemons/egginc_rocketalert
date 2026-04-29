@@ -15,6 +15,7 @@ API_ROOT = "https://www.auxbrain.com"
 CLIENT_VERSION = 70
 PLATFORM_STRING = "IOS"
 API_INTERVAL_HOURS = 1
+REPORTED_ID_TTL_HOURS = 48
 
 HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
@@ -163,12 +164,19 @@ def run_account(cfg, account, now):
     new_state_missions = []
     landed = []
 
+    # Prune reported_ids older than TTL so the dict doesn't grow forever
+    reported_ids = state.get("reported_ids", {})
+    cutoff = now - timedelta(hours=REPORTED_ID_TTL_HOURS)
+    reported_ids = {k: v for k, v in reported_ids.items() if datetime.fromisoformat(v) > cutoff}
+
     # 1. Check which old missions have landed (ETA passed)
     for m in old_missions:
         eta = datetime.fromisoformat(m["eta"])
         if eta <= now and not m.get("reported", False):
             landed.append(m)
             m["reported"] = True
+            if m.get("identifier"):
+                reported_ids[m["identifier"]] = now.isoformat()
             continue
         if eta > now:
             new_state_missions.append(m)
@@ -193,6 +201,7 @@ def run_account(cfg, account, now):
 
         existing_ids = {m.get("identifier") for m in new_state_missions if m.get("identifier")}
         existing_ids |= {m.get("identifier") for m in landed if m.get("identifier")}
+        existing_ids |= set(reported_ids.keys())
         for m in fresh:
             if m["identifier"] not in existing_ids:
                 print(f"[INFO] {label}New mission: {m['ship']} — ETA {m['eta']}", file=sys.stderr)
@@ -218,6 +227,7 @@ def run_account(cfg, account, now):
         ship = SHIP_NAMES.get(m.get("ship", ""), m.get("ship", "?"))
         notify(f"Rocket landed: {ship}", name)
 
+    state["reported_ids"] = reported_ids
     state["missions"] = new_state_missions
     save_state(player_id, state)
 
