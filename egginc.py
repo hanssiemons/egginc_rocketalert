@@ -16,6 +16,7 @@ CLIENT_VERSION = 70
 PLATFORM_STRING = "IOS"
 API_INTERVAL_HOURS = 1
 REPORTED_ID_TTL_HOURS = 48
+LANDING_GRACE_HOURS = 8  # suppress "not flying" alerts for this long after any landing
 
 HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
@@ -177,6 +178,7 @@ def run_account(cfg, account, now):
             m["reported"] = True
             if m.get("identifier"):
                 reported_ids[m["identifier"]] = now.isoformat()
+            state["last_landing_time"] = now.isoformat()
             continue
         if eta > now:
             new_state_missions.append(m)
@@ -217,8 +219,10 @@ def run_account(cfg, account, now):
         else:
             print(f"[INFO] {label}Skipping API (no missions tracked)", file=sys.stderr)
 
-    # 3. Remind if not all slots are in use (only on API runs, and not right after a landing)
-    if need_api and not landed and len(new_state_missions) < max_missions:
+    # 3. Remind if not all slots are in use, outside the grace period after a landing
+    last_landing = state.get("last_landing_time")
+    in_grace = last_landing and datetime.fromisoformat(last_landing) > now - timedelta(hours=LANDING_GRACE_HOURS)
+    if need_api and not in_grace and len(new_state_missions) < max_missions:
         flying = len(new_state_missions)
         notify(f"Not all rockets are flying: {flying}/{max_missions} active", name)
 
